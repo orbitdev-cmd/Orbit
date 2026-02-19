@@ -1446,7 +1446,6 @@ video_playing = False
 
 app_active = False 
 
-# Era Journey
 journey_active = False
 journey_sequence = []     
 journey_step = 0          
