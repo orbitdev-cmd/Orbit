@@ -1250,6 +1250,8 @@ def show_globe():
         support_button.enabled = True
         support_button.visible = True
 
+        create_planets_button()
+
         if settings.get('default_texture_is_earth', True):
             earth.texture = 'earth_texture.jpg'
         else:
@@ -1297,12 +1299,192 @@ def show_globe():
         import traceback
         traceback.print_exc()
 
+def toggle_planet_ui():
+    global planet_ui_panel
+    if planet_ui_panel:
+        planet_ui_panel.animate_scale((0,0), duration=0.2, curve=curve.out_back)
+        destroy(planet_ui_panel, delay=0.21)
+        planet_ui_panel = None
+    else:
+        create_planet_selection_ui()
+
+def create_planet_selection_ui():
+    global planet_ui_panel
+    planet_ui_panel = Entity(
+        parent=camera.ui,
+        model='quad',
+        color=Color(0,0,0,0.7),
+        scale=(0.25, 0.7),
+        position=(0.65, 0),
+        z=20,
+        alpha=0
+    )
+    planet_ui_panel.animate('alpha', 1, duration=0.2)
+    planet_ui_panel.animate_scale((0.25, 0.7), duration=0.3, curve=curve.out_back)
+    
+    Text(parent=planet_ui_panel, text="🌌 PLANETS", 
+         position=(0, 0.3), scale=1.2, color=color.white, origin=(0.5,0.5))
+    
+    planets = [
+        ("☀️ SUN", "sun"),
+        ("☿ MERCURY", "mercury"),
+        ("♀️ VENUS", "venus"),
+        ("🌍 EARTH", "earth"),
+        ("♂️ MARS", "mars"),
+        ("♃ JUPITER", "jupiter"),
+        ("♄ SATURN", "saturn"),
+        ("♅ URANUS", "uranus"),
+        ("♆ NEPTUNE", "neptune")
+    ]
+    
+    for i, (display_name, planet_key) in enumerate(planets):
+        y_pos = 0.2 - i * 0.07
+        Button(
+            parent=planet_ui_panel,
+            text=display_name,
+            position=(0, y_pos),
+            scale=(0.2, 0.05),
+            color=color.black,
+            text_color=color.white,
+            highlight_color=color.dark_gray,
+            on_click=Func(switch_to_planet, planet_key)
+        )
+    
+    Button(
+        parent=planet_ui_panel,
+        text="← BACK",
+        position=(-0.1, -0.5), 
+        scale=(0.15, 0.05),
+        color=color.dark_gray,
+        text_color=color.white,
+        on_click=toggle_planet_ui
+    )
+
+def switch_to_planet(planet_key):
+    global current_planet, solar_system_active, sun_watch_timer, sun_warning_active
+    toggle_planet_ui()
+    fade_in(0.4)
+    
+    if not solar_system_active and planet_key != "earth":
+        enter_solar_system_mode()
+    elif planet_key == "earth" and solar_system_active:
+        exit_solar_system_mode()
+    
+    try:
+        earth.texture = f"{planet_key}_texture.jpg"
+        current_planet = planet_key
+        print(f"Switched to {planet_key}")
+    except:
+        print(f"Could not load {planet_key}_texture.jpg")
+
+    if planet_key != "earth":
+        for dot in dots:
+            dot.visible = False
+    else:
+        for dot in dots:
+            dot.visible = True
+
+    
+    sun_watch_timer = 0
+    sun_warning_active = False
+    handle_planet_effects(planet_key)
+    invoke(fade_out, 0.4, delay=0.5)
+
+def enter_solar_system_mode():
+    global solar_system_active, ss_back_button, sun_light 
+    solar_system_active = True
+    
+    if support_button:
+        support_button.enabled = False
+        support_button.visible = False
+    if clock_text:
+        clock_text.enabled = False
+    if planet_button:
+        planet_button.enabled = False
+        planet_button.visible = False
+    
+    ss_back_button = Button(
+        parent=camera.ui,
+        text="← BACK TO EARTH",
+        position=(0.7, 0.4),
+        scale=(0.2, 0.06),
+        color=color.black,
+        text_color=color.white,
+        on_click=exit_solar_system_mode
+    )
+
+def exit_solar_system_mode():
+    global solar_system_active, ss_back_button, saturn_rings, sun_light 
+    solar_system_active = False
+    fade_in(0.4)
+    
+    if support_button:
+        support_button.enabled = True
+        support_button.visible = True
+    if clock_text:
+        clock_text.enabled = True
+    if planet_button:
+        planet_button.enabled = True
+        planet_button.visible = True
+
+    if sun_light:
+        destroy(sun_light)
+        sun_light = None
+    
+    if ss_back_button:
+        destroy(ss_back_button)
+        ss_back_button = None
+    
+    if saturn_rings:
+        destroy(saturn_rings)
+        saturn_rings = None
+    
+    earth.texture = "earth_texture.jpg"
+    current_planet = "earth"
+    invoke(fade_out, 0.4, delay=0.5)
+
+def handle_planet_effects(planet_key):
+    global saturn_rings
+    
+    if saturn_rings:
+        destroy(saturn_rings)
+        saturn_rings = None
+
+    if planet_key == "sun":
+        global sun_light
+        sun_light = PointLight(parent=earth, color=color.yellow, position=(0,0,0), range=10, intensity=2)
+    
+    if planet_key == "saturn":
+        saturn_rings = Entity(
+            parent=earth,
+            model='circle',
+            color=color.rgba(255,255,200,100),
+            scale=1.8,
+            thickness=3,
+            double_sided=True
+        )
+        saturn_rings.rotation_x = 45
+
+def create_planets_button():
+    global planet_button
+    planet_button = Button(
+        parent=camera.ui,
+        text="🌌 PLANETS",
+        position=(0.7, 0.4),
+        scale=(0.15, 0.06),
+        color=color.black,
+        text_color=color.white,
+        highlight_color=color.dark_gray,
+        on_click=toggle_planet_ui
+    )
+
 def show_menu_after_video():
     print(_("video_ended"))
     global video_quad
     if video_quad:
         destroy(video_quad)
         video_quad = None
+
     create_main_menu()
 
 def play_video_intro():
@@ -1539,6 +1721,17 @@ mp_chat_input = None
 mp_chat_messages = []
 mp_chat_history = []
 mp_pings = []
+
+solar_system_active = False
+current_planet = "earth"
+planet_button = None
+planet_ui_panel = None
+sun_watch_timer = 0
+sun_warning_active = False
+saturn_rings = None
+ss_back_button = None
+SUN_WARNING_TIME = 10
+sun_light = None
 
 def generate_room_code():
     return random.randint(1000, 9999)
@@ -3483,11 +3676,60 @@ def input(key):
             suggestions.clear()
 
 def update():
-    global afk_timer, game_mode
+    global afk_timer, game_mode, sun_watch_timer, sun_warning_active, sun_light 
 
     if game_mode == "multiplayer" and multiplayer_active:
         update_multiplayer()
         return
+
+    if solar_system_active and current_planet == "sun":
+        sun_distance = distance(camera.position, earth.position)
+        
+        DANGER_DISTANCE = 8
+        CRITICAL_DISTANCE = 5
+        
+        if sun_distance < DANGER_DISTANCE:
+            danger_level = 1 - ((sun_distance - CRITICAL_DISTANCE) / (DANGER_DISTANCE - CRITICAL_DISTANCE))
+            danger_level = max(0, min(1, danger_level))
+            
+            red_intensity = danger_level * 0.7
+            
+            fade_overlay.enabled = True
+            fade_overlay.visible = True
+            fade_overlay.z = 999
+            fade_overlay.color = color.red
+            fade_overlay.alpha = red_intensity
+            
+            if sun_distance < CRITICAL_DISTANCE and not sun_warning_active:
+                sun_warning_active = True
+                
+                fade_overlay.color = color.red
+                fade_overlay.alpha = 1
+                invoke(lambda: setattr(fade_overlay, 'alpha', 0.3), delay=0.2)
+                
+                warning_text = Text(
+                    parent=camera.ui,
+                    text="☀️ TOO CLOSE! ☀️",
+                    position=(0,0),
+                    scale=3,
+                    color=color.white,
+                    background=True,
+                    background_color=Color(0,0,0,0.9),
+                    z=100
+                )
+                destroy(warning_text, delay=2)
+                
+                def reset_warning():
+                    global sun_warning_active
+                    sun_warning_active = False
+                invoke(reset_warning, delay=3)
+        else:
+            fade_overlay.alpha = max(0, fade_overlay.alpha - time.dt * 2)
+            if fade_overlay.alpha < 0.01:
+                fade_overlay.alpha = 0
+                fade_overlay.color = color.black
+                fade_overlay.enabled = False
+                sun_warning_active = False
 
     if loading_active:
         update_loading()
@@ -3498,7 +3740,6 @@ def update():
 
     if settings.get('auto_rotate_enabled', False):
         earth.rotation_y += 10 * time.dt
-
 
     if timeline_visible:
         update_timeline()
